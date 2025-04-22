@@ -1,16 +1,17 @@
 import React from "react";
+import { Link } from "react-router-dom";
 
 const Footer = () => {
     return (
-        <footer className="bg-green-900 text-white py-10 mt-16">
+        <footer className="bg-green-900 text-white py-10">
           <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 px-6">
             <div>
               <h2 className="font-bold text-lg mb-4">About</h2>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:underline">Our Mission</a></li>
-                <li><a href="#" className="hover:underline">Team</a></li>
-                <li><a href="#" className="hover:underline">Contact Us</a></li>
-              </ul>
+              <ul className="space-y-2 text-sm text-gray-200">
+                <li><Link to="/about" className="hover:underline">Our Mission</Link></li>
+                <li><Link to="/team" className="hover:underline">Team</Link></li>
+                <li><Link to="/contact" className="hover:underline">Contact Us</Link></li>
+               </ul>
             </div>
             <div>
               <h2 className="font-bold text-lg mb-4">Privacy</h2>
