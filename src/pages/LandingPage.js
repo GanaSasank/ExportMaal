@@ -19,13 +19,14 @@ const LandingPage = () => {
     backgroundPosition: "center",
     opacity: 0.15,
   }}
-></div>
+>
+</div>
       <div className="min-h-screen flex flex-col items-center justify-center bg-green-100 p-6">
-        <h1 className="text-4xl font-bold mb-8 text-green-800">
+        <h1 className="text-4xl font-bold mb-8 text-green-800 z-[+1]">
           Welcome to Export Maal 🌿
         </h1>
         <p className="mb-10 text-lg text-gray-700">
-          Choose who are you
+          <strong> Choose who you are</strong> 
         </p>
         <div className="flex gap-8">
           <button 
@@ -42,7 +43,8 @@ const LandingPage = () => {
           </button>
         </div>
       </div>
-    <Footer /></>
+    <Footer />
+    </>
   );
 };
 
