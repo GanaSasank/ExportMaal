@@ -7,6 +7,8 @@ import BuyerLogin from "./pages/BuyerLogin";
 import AboutPage from "./pages/AboutPage";
 import TeamPage from "./pages/TeamPage";
 import ContactPage from "./pages/ContactPage";
+import FarmerRegister from "./pages/FarmerRegister";
+import FarmerDashboard from "./pages/FarmerDashboard";
 
 function App() {
   return (
@@ -19,6 +21,8 @@ function App() {
         <Route path="/team" element={<TeamPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/login/farmer" element={<FarmerLogin />} />
+        <Route path="/register/farmer" element={<FarmerRegister />} />
+        <Route path="/dashboard/farmer" element={<FarmerDashboard />} />
       </Routes>
     </Router>
   );
