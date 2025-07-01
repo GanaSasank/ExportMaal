@@ -1,0 +1,119 @@
+import React, { useState } from "react";
+import Footer from "../components/Footer";
+
+const FarmerRegister = () => {
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [showVerifyButton, setShowVerifyButton] = useState(false);
+  const [showOtpBox, setShowOtpBox] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const handleEmailChange = (e) => {
+    const value = e.target.value;
+    setEmail(value);
+    if (value.endsWith("@gmail.com")) {
+      setShowVerifyButton(true);
+    } else {
+      setShowVerifyButton(false);
+      setShowOtpBox(false);
+    }
+  };
+
+  const handleVerifyClick = () => {
+    // simulate sending OTP
+    setShowOtpBox(true);
+  };
+
+  const handleRegister = (e) => {
+    e.preventDefault();
+    // TODO: Handle form validation and registration API call
+    alert("Registered successfully!");
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col justify-between bg-green-50">
+      <div className="flex flex-col items-center mt-10">
+        <h2 className="text-3xl font-bold text-green-800 mb-6">
+          Farmer Registration
+        </h2>
+        <form onSubmit={handleRegister} className="w-full max-w-md p-6 bg-white rounded-xl shadow-md space-y-5">
+          <input
+            type="text"
+            placeholder="Full Name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+            className="w-full p-3 border rounded-lg"
+          />
+          <input
+            type="tel"
+            placeholder="Phone Number"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+            className="w-full p-3 border rounded-lg"
+          />
+          <input
+            type="email"
+            placeholder="Email (must end with @gmail.com)"
+            value={email}
+            onChange={handleEmailChange}
+            required
+            className="w-full p-3 border rounded-lg"
+          />
+          {showVerifyButton && (
+            <button
+              type="button"
+              onClick={handleVerifyClick}
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg"
+            >
+              Verify Email
+            </button>
+          )}
+          {showOtpBox && (
+            <input
+              type="text"
+              placeholder="Enter OTP"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              required
+              className="w-full p-3 border rounded-lg"
+            />
+          )}
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="w-full p-3 border rounded-lg"
+          />
+          <input
+            type="password"
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            className="w-full p-3 border rounded-lg"
+          />
+          <button
+            type="submit"
+            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg"
+          >
+            Register
+          </button>
+        </form>
+      </div>
+      <Footer />
+    </div>
+  );
+};
+
+export default FarmerRegister;
+
+
+// ====================================================================================================================
+
