@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { auth } from "../firebase";
 import Footer from "../components/Footer";
+
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const FarmerRegister = () => {
   const [formData, setFormData] = useState({
@@ -14,6 +17,8 @@ const FarmerRegister = () => {
   });
 
   const [message, setMessage] = useState("");
+  const [isError, setIsError] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(null);
   const [formVisible, setFormVisible] = useState(true);
 
@@ -28,24 +33,40 @@ const FarmerRegister = () => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    setMessage("");
+    setIsError(false);
 
     if (formData.password !== formData.confirmPassword) {
+      setIsError(true);
       setMessage("❌ Passwords do not match.");
       return;
     }
 
+    setLoading(true);
+    let firebaseUser = null;
+
     try {
+      // 1. Create Firebase account (for login)
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
         formData.password
       );
+      firebaseUser = userCredential.user;
 
-      await sendEmailVerification(userCredential.user);
+      // 2. Save farmer profile to MongoDB
+      await axios.post(`${API_URL}/api/farmer`, {
+        uid: firebaseUser.uid,
+        name: formData.fullName,
+        phone: formData.phone,
+        email: formData.email,
+      });
 
-      setMessage("✅ Verification email sent! Please check your inbox.");
+      // 3. Send verification email
+      await sendEmailVerification(firebaseUser);
+
+      setMessage("✅ Registered! Verification email sent. Please check your inbox.");
       setFormVisible(false);
-
       setFormData({
         fullName: "",
         phone: "",
@@ -53,11 +74,25 @@ const FarmerRegister = () => {
         password: "",
         confirmPassword: "",
       });
-
       setCountdown(10);
     } catch (error) {
-      console.error("Registration error:", error);
-      setMessage(`❌ ${error.message}`);
+      console.error("Registration error:", error.response?.data || error);
+
+      // If MongoDB save failed, remove the Firebase account so you can retry
+      if (firebaseUser) {
+        try {
+          await firebaseUser.delete();
+        } catch (_) {}
+      }
+
+      setIsError(true);
+      if (error.code === "ERR_NETWORK") {
+        setMessage("❌ Cannot reach the server. Is the backend running on port 5000?");
+      } else {
+        setMessage(`❌ ${error.response?.data?.message || error.message}`);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -75,6 +110,9 @@ const FarmerRegister = () => {
 
     return () => clearTimeout(timer);
   }, [countdown, navigate]);
+
+  const inputClass =
+    "w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500";
 
   return (
     <div className="flex flex-col min-h-screen bg-green-50">
@@ -94,10 +132,11 @@ const FarmerRegister = () => {
                   required
                   value={formData.fullName}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className={inputClass}
                   placeholder="Enter your name"
                 />
               </div>
+
               <div>
                 <label className="block text-gray-700 mb-1">Phone Number</label>
                 <input
@@ -106,10 +145,11 @@ const FarmerRegister = () => {
                   required
                   value={formData.phone}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className={inputClass}
                   placeholder="Enter your phone number"
                 />
               </div>
+
               <div>
                 <label className="block text-gray-700 mb-1">Email</label>
                 <input
@@ -118,10 +158,11 @@ const FarmerRegister = () => {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className={inputClass}
                   placeholder="Enter your email"
                 />
               </div>
+
               <div>
                 <label className="block text-gray-700 mb-1">Password</label>
                 <input
@@ -130,10 +171,11 @@ const FarmerRegister = () => {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className={inputClass}
                   placeholder="Enter your password"
                 />
               </div>
+
               <div>
                 <label className="block text-gray-700 mb-1">Confirm Password</label>
                 <input
@@ -142,22 +184,26 @@ const FarmerRegister = () => {
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className={inputClass}
                   placeholder="Confirm your password"
                 />
               </div>
+
               <button
                 type="submit"
-                className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition"
+                disabled={loading}
+                className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition disabled:opacity-60"
               >
-                Register
+                {loading ? "Registering..." : "Register"}
               </button>
             </form>
           )}
 
           {message && (
             <div className="mt-4 text-center">
-              <p className="text-sm text-red-600">{message}</p>
+              <p className={`text-sm ${isError ? "text-red-600" : "text-green-700"}`}>
+                {message}
+              </p>
               {countdown !== null && (
                 <p className="text-sm text-gray-600 mt-1">
                   Redirecting to login in {countdown} second{countdown !== 1 ? "s" : ""}...

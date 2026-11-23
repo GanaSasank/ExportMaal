@@ -26,7 +26,7 @@ const FarmerLogin = () => {
       // If email is verified, navigate to dashboard
       navigate("/dashboard/farmer");
     } catch (err) {
-      setError("❌ Login failed: " + err.message);
+      setError("❌ Login failed. Please check your credentials and try again.");
     }
   };
 
