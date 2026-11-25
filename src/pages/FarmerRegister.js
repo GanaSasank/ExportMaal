@@ -3,7 +3,6 @@ import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { auth } from "../firebase";
-import Footer from "../components/Footer";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
@@ -21,10 +20,12 @@ const FarmerRegister = () => {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(null);
   const [formVisible, setFormVisible] = useState(true);
+  const [existingAccount, setExistingAccount] = useState(false);
 
   const navigate = useNavigate();
 
   const handleChange = (e) => {
+    setExistingAccount(false);
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
@@ -35,6 +36,7 @@ const FarmerRegister = () => {
     e.preventDefault();
     setMessage("");
     setIsError(false);
+    setExistingAccount(false);
 
     if (formData.password !== formData.confirmPassword) {
       setIsError(true);
@@ -53,17 +55,20 @@ const FarmerRegister = () => {
         formData.password
       );
       firebaseUser = userCredential.user;
+      const idToken = await firebaseUser.getIdToken(true);
 
-      // 2. Save farmer profile to MongoDB
+      // 2. Send verification email
+      await sendEmailVerification(firebaseUser);
+
+      // 3. Save farmer profile to MongoDB
       await axios.post(`${API_URL}/api/farmer`, {
         uid: firebaseUser.uid,
         name: formData.fullName,
         phone: formData.phone,
         email: formData.email,
+      }, {
+        headers: { Authorization: `Bearer ${idToken}` },
       });
-
-      // 3. Send verification email
-      await sendEmailVerification(firebaseUser);
 
       setMessage("✅ Registered! Verification email sent. Please check your inbox.");
       setFormVisible(false);
@@ -77,16 +82,26 @@ const FarmerRegister = () => {
       setCountdown(10);
     } catch (error) {
       console.error("Registration error:", error.response?.data || error);
+      const accountAlreadyExists =
+        error.code === "auth/email-already-in-use" ||
+        error.response?.status === 409;
 
       // If MongoDB save failed, remove the Firebase account so you can retry
       if (firebaseUser) {
         try {
           await firebaseUser.delete();
-        } catch (_) {}
+        } catch (cleanupError) {
+          console.error("Could not remove the incomplete Firebase account:", cleanupError);
+        }
       }
 
       setIsError(true);
-      if (error.code === "ERR_NETWORK") {
+      if (accountAlreadyExists) {
+        setExistingAccount(true);
+        setMessage(
+          "A farmer account with this email already exists. Please sign in instead."
+        );
+      } else if (error.code === "ERR_NETWORK") {
         setMessage("❌ Cannot reach the server. Is the backend running on port 5000?");
       } else {
         setMessage(`❌ ${error.response?.data?.message || error.message}`);
@@ -204,6 +219,15 @@ const FarmerRegister = () => {
               <p className={`text-sm ${isError ? "text-red-600" : "text-green-700"}`}>
                 {message}
               </p>
+              {existingAccount && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/login/farmer")}
+                  className="mt-2 font-semibold text-green-800 hover:underline"
+                >
+                  Go to Farmer Login
+                </button>
+              )}
               {countdown !== null && (
                 <p className="text-sm text-gray-600 mt-1">
                   Redirecting to login in {countdown} second{countdown !== 1 ? "s" : ""}...
@@ -214,7 +238,6 @@ const FarmerRegister = () => {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 };

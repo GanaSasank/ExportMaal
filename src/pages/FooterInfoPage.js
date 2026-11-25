@@ -1,6 +1,5 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import Footer from "../components/Footer";
 
 const email = "ganasasankforit@gmail.com";
 
@@ -14,11 +13,11 @@ const pages = {
       },
       {
         title: "Farmers share what they grow",
-        text: "The planned product-listing experience will let farmers add as many products as they need. Each listing is intended to include a description, quantity, expected price, location, contact details, and up to 10 product photos.",
+        text: "Signed-in farmers can add as many Mosambi, Banana, Chilli, or Brinjal listings as they need. Each listing includes expected quantity, location details, and an INR price per kg or tonne, and can be edited or deleted from the farmer dashboard.",
       },
       {
         title: "Buyers discover and connect",
-        text: "Listings are intended to appear as easy-to-browse cards so buyers can review produce details and contact farmers directly to discuss a purchase. Product listings and image uploads are planned features and are not available in the current app yet.",
+        text: "Farmer listings appear as cards in the farmer's dashboard. Buyer browsing and product image uploads are not available yet; images are marked as coming soon.",
       },
     ],
   },
@@ -31,8 +30,8 @@ const pages = {
         text: "Farmer registration currently asks for a name, email address, and phone number. The app uses Firebase Authentication to create and sign in farmer accounts, and sends the Firebase user ID and profile details to the Export Maal backend, which stores the profile in MongoDB.",
       },
       {
-        title: "Planned product information",
-        text: "Product details, prices, quantities, addresses, and product photos are part of the planned marketplace experience. The current app does not yet provide product listings or photo uploads.",
+        title: "Product information",
+        text: "Farmers can save product names, quantities, expected prices, and location details in MongoDB. Product image upload is not yet available.",
       },
       {
         title: "Questions or requests",
@@ -46,7 +45,7 @@ const pages = {
     sections: [
       {
         title: "Prototype service",
-        text: "Export Maal is under development. Features, availability, and information shown in the app may change. The current app supports farmer account registration and sign-in; it does not yet support marketplace listings, orders, payments, or delivery arrangements.",
+        text: "Export Maal is under development. Features, availability, and information shown in the app may change. Farmers can create and manage product listings; buyer browsing, orders, payments, and delivery arrangements are not yet available.",
       },
       {
         title: "Account information",
@@ -54,7 +53,7 @@ const pages = {
       },
       {
         title: "Direct discussions",
-        text: "When marketplace features become available, farmers and buyers will be responsible for verifying product details and agreeing on prices, quantities, delivery, and payment directly. Export Maal does not currently process transactions.",
+        text: "When buyer marketplace features become available, farmers and buyers will be responsible for verifying product details and agreeing on prices, quantities, delivery, and payment directly. Export Maal does not currently process transactions.",
       },
     ],
   },
@@ -68,7 +67,7 @@ const pages = {
       },
       {
         title: "Use only the current features",
-        text: "The prototype does not currently collect product photos, listing addresses, prices, or quantities because product listing and upload features have not yet been implemented. Avoid entering sensitive information into the app.",
+        text: "Product names, quantities, prices, and location details are saved for farmer listings. Product photos are not collected because image uploads are not yet available. Avoid entering sensitive information into the app.",
       },
       {
         title: "Contact",
@@ -158,7 +157,6 @@ const FooterInfoPage = ({ page }) => {
           .
         </p>
       </main>
-      <Footer />
     </div>
   );
 };

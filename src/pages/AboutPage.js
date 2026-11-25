@@ -19,11 +19,10 @@ const AboutPage = () => (
       </p>
 
       <p>
-        Farmers will be able to create product listings with descriptions,
-        quantity, expected price, location, contact details, and up to 10
-        photographs or pictures taken of each product. Listings will appear in
-        clear, easy-to-browse cards, and farmers can add as many products as they
-        need.
+        Farmers can create product listings with quantity, expected price, and
+        location details. Each listing appears as a card in the farmer's
+        dashboard, where it can be edited or deleted. Farmers can add as many
+        products as they need; image uploads are coming soon.
       </p>
 
       <p>

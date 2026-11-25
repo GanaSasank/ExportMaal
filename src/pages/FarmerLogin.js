@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
-import Footer from "../components/Footer";
 
 const FarmerLogin = () => {
   const navigate = useNavigate();
@@ -89,7 +88,6 @@ const FarmerLogin = () => {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 };
