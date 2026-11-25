@@ -17,7 +17,7 @@ const pages = {
       },
       {
         title: "Buyers discover and connect",
-        text: "Farmer listings appear as cards in the farmer's dashboard. Buyer browsing and product image uploads are not available yet; images are marked as coming soon.",
+        text: "Verified Buyers can browse Farmer listings, filter by product, estimated total, and location, then open a listing to view the Farmer's name and phone number. Product image uploads are coming soon.",
       },
     ],
   },
@@ -27,7 +27,7 @@ const pages = {
     sections: [
       {
         title: "Information collected today",
-        text: "Farmer registration currently asks for a name, email address, and phone number. The app uses Firebase Authentication to create and sign in farmer accounts, and sends the Firebase user ID and profile details to the Export Maal backend, which stores the profile in MongoDB.",
+        text: "Farmer and Buyer registration ask for a name, email address, and phone number. Buyer registration also stores the genuine-buyer declaration. The app uses Firebase Authentication to create and sign in accounts, and saves each role's profile in its separate MongoDB collection.",
       },
       {
         title: "Product information",
@@ -45,7 +45,7 @@ const pages = {
     sections: [
       {
         title: "Prototype service",
-        text: "Export Maal is under development. Features, availability, and information shown in the app may change. Farmers can create and manage product listings; buyer browsing, orders, payments, and delivery arrangements are not yet available.",
+        text: "Export Maal is under development. Features, availability, and information shown in the app may change. Farmers can create and manage product listings, and verified Buyers can browse them and contact Farmers. Orders, payments, and delivery arrangements are not yet available.",
       },
       {
         title: "Account information",
@@ -53,7 +53,7 @@ const pages = {
       },
       {
         title: "Direct discussions",
-        text: "When buyer marketplace features become available, farmers and buyers will be responsible for verifying product details and agreeing on prices, quantities, delivery, and payment directly. Export Maal does not currently process transactions.",
+        text: "Farmers and Buyers are responsible for verifying product details and agreeing on prices, quantities, delivery, and payment directly. Export Maal does not currently process transactions.",
       },
     ],
   },

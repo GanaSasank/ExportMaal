@@ -17,7 +17,10 @@ import AboutPage from "./pages/AboutPage";
 import TeamPage from "./pages/TeamPage";
 import ContactPage from "./pages/ContactPage";
 import FarmerRegister from "./pages/FarmerRegister";
+import BuyerRegister from "./pages/BuyerRegister";
 import FarmerDashboard from "./pages/FarmerDashboard";
+import BuyerDashboard from "./pages/BuyerDashboard";
+import BuyerProfileSetup from "./pages/BuyerProfileSetup";
 import ProfilePage from "./pages/ProfilePage";
 import FooterInfoPage from "./pages/FooterInfoPage";
 import Header from "./components/Header";
@@ -31,10 +34,13 @@ const ProtectedRoute = ({
   authError,
   profileLoading,
   profileError,
-  farmerProfile,
+  accountProfile,
+  accountType,
+  profileType,
   profileOwnerUid,
   user,
   loginPath,
+  onBuyerProfileCreated,
   children
 }) => {
   const location = useLocation();
@@ -65,13 +71,30 @@ const ProtectedRoute = ({
       </p>
     );
   }
-  if (!farmerProfile) {
+  if (profileType && profileType !== accountType) {
     return (
       <main className="min-h-screen bg-green-50 p-8">
         <p className="mx-auto max-w-2xl rounded-lg bg-white p-5 text-red-700" role="alert">
-          We could not find the farmer profile saved for this verified email.
-          Your registration details have not been requested again. Please sign
-          in with the email used to register or contact support if this continues.
+          This account is registered as a {profileType}. Sign in with a separate
+          {` ${accountType}`} account to continue.
+        </p>
+      </main>
+    );
+  }
+  if (!accountProfile && accountType === "buyer" && !profileType) {
+    return <BuyerProfileSetup onProfileCreated={onBuyerProfileCreated} />;
+  }
+  if (!accountProfile) {
+    const roleLabel = accountType
+      ? `${accountType[0].toUpperCase()}${accountType.slice(1)}`
+      : "User";
+    const missingProfileMessage = accountType === "farmer"
+      ? "We could not find the farmer profile saved for this verified email. Your registration details have not been requested again. Please sign in with the email used to register or contact support if this continues."
+      : `We could not find a ${roleLabel} profile linked to this verified account. Please sign in with the email used to register or contact support.`;
+    return (
+      <main className="min-h-screen bg-green-50 p-8">
+        <p className="mx-auto max-w-2xl rounded-lg bg-white p-5 text-red-700" role="alert">
+          {missingProfileMessage}
         </p>
       </main>
     );
@@ -103,6 +126,8 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState("");
   const [farmerProfile, setFarmerProfile] = useState(null);
+  const [buyerProfile, setBuyerProfile] = useState(null);
+  const [profileType, setProfileType] = useState(null);
   const [profileOwnerUid, setProfileOwnerUid] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
@@ -127,6 +152,8 @@ function App() {
   useEffect(() => {
     if (!user?.emailVerified) {
       setFarmerProfile(null);
+      setBuyerProfile(null);
+      setProfileType(null);
       setProfileOwnerUid(null);
       setProfileLoading(false);
       setProfileError("");
@@ -134,28 +161,44 @@ function App() {
     }
 
     let active = true;
+    setFarmerProfile(null);
+    setBuyerProfile(null);
+    setProfileType(null);
+    setProfileOwnerUid(null);
     setProfileLoading(true);
     setProfileError("");
 
-    const loadFarmerProfile = async () => {
+    const loadAccountProfile = async () => {
       try {
         const token = await user.getIdToken(true);
-        const response = await axios.get(
-          `${API_URL}/api/farmer/${encodeURIComponent(user.uid)}`,
-          {
-            headers: { Authorization: `Bearer ${token}` }
+        const headers = { Authorization: `Bearer ${token}` };
+        try {
+          const response = await axios.get(`${API_URL}/api/buyer/me`, { headers });
+          if (active) {
+            setBuyerProfile(response.data);
+            setProfileType("buyer");
           }
-        );
-        if (active) setFarmerProfile(response.data);
+        } catch (buyerError) {
+          if (buyerError.response?.status !== 404) throw buyerError;
+
+          try {
+            const response = await axios.get(
+              `${API_URL}/api/farmer/${encodeURIComponent(user.uid)}`,
+              { headers }
+            );
+            if (active) {
+              setFarmerProfile(response.data);
+              setProfileType("farmer");
+            }
+          } catch (farmerError) {
+            if (farmerError.response?.status !== 404) throw farmerError;
+          }
+        }
       } catch (error) {
-        if (!active) return;
-        if (error.response?.status === 404) {
-          setFarmerProfile(null);
-        } else {
-          setFarmerProfile(null);
+        if (active) {
           setProfileError(
             error.response?.data?.message ||
-              "Unable to load your farmer profile. Check the API connection and try again."
+              "Unable to load your account profile. Check the API connection and try again."
           );
         }
       } finally {
@@ -166,7 +209,7 @@ function App() {
       }
     };
 
-    loadFarmerProfile();
+    loadAccountProfile();
     return () => {
       active = false;
     };
@@ -177,6 +220,8 @@ function App() {
       <Header
         user={authLoading ? null : user}
         farmerProfile={profileOwnerUid === user?.uid ? farmerProfile : null}
+        buyerProfile={profileOwnerUid === user?.uid ? buyerProfile : null}
+        profileType={profileOwnerUid === user?.uid ? profileType : null}
         profileLoading={profileLoading}
         profileError={profileError}
         authLoading={authLoading}
@@ -189,6 +234,7 @@ function App() {
         <Route path="/team" element={<TeamPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/register/farmer" element={<FarmerRegister />} />
+        <Route path="/register/buyer" element={<BuyerRegister />} />
         <Route
           path="/dashboard/farmer"
           element={
@@ -197,7 +243,9 @@ function App() {
               authError={authError}
               profileLoading={profileLoading}
               profileError={profileError}
-              farmerProfile={farmerProfile}
+              accountProfile={farmerProfile}
+              accountType="farmer"
+              profileType={profileType}
               profileOwnerUid={profileOwnerUid}
               user={user}
               loginPath="/login/farmer"
@@ -208,7 +256,26 @@ function App() {
         />
         <Route
           path="/dashboard/buyer"
-          element={<Navigate to="/login/buyer" replace />}
+          element={
+            <ProtectedRoute
+              authLoading={authLoading}
+              authError={authError}
+              profileLoading={profileLoading}
+              profileError={profileError}
+              accountProfile={buyerProfile}
+              accountType="buyer"
+              profileType={profileType}
+              profileOwnerUid={profileOwnerUid}
+              user={user}
+              loginPath="/login/buyer"
+              onBuyerProfileCreated={(profile) => {
+                setBuyerProfile(profile);
+                setProfileType("buyer");
+              }}
+            >
+              <BuyerDashboard buyerProfile={buyerProfile} />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/profile"
@@ -218,12 +285,14 @@ function App() {
               authError={authError}
               profileLoading={profileLoading}
               profileError={profileError}
-              farmerProfile={farmerProfile}
+              accountProfile={profileType === "buyer" ? buyerProfile : farmerProfile}
+              accountType={profileType}
+              profileType={profileType}
               profileOwnerUid={profileOwnerUid}
               user={user}
-              loginPath="/login/farmer"
+              loginPath={profileType === "buyer" ? "/login/buyer" : "/login/farmer"}
             >
-              <ProfilePage />
+              <ProfilePage accountType={profileType} />
             </ProtectedRoute>
           }
         />

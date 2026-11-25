@@ -16,6 +16,7 @@ jest.mock("firebase/auth", () => ({
   onAuthStateChanged: jest.fn(),
   signInWithEmailAndPassword: jest.fn(),
   signOut: jest.fn(),
+  sendPasswordResetEmail: jest.fn(),
   createUserWithEmailAndPassword: jest.fn(),
   sendEmailVerification: jest.fn(),
   reload: jest.fn(),
@@ -32,10 +33,13 @@ jest.mock("axios", () => ({
 const { auth } = require("./firebase");
 const {
   onAuthStateChanged,
+  signInWithEmailAndPassword,
   signOut,
+  sendPasswordResetEmail,
   reload,
   verifyBeforeUpdateEmail,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  sendEmailVerification
 } = require("firebase/auth");
 const axios = require("axios");
 let authListener;
@@ -49,9 +53,14 @@ beforeEach(() => {
     email: "signed-in@example.com",
     phone: "1234567890"
   };
-  axios.get.mockImplementation((url) => Promise.resolve({
-    data: url.includes("/api/products/me") ? [] : farmerProfile
-  }));
+  axios.get.mockImplementation((url) => {
+    if (url.includes("/api/buyer/me")) {
+      return Promise.reject({ response: { status: 404 } });
+    }
+    if (url.includes("/api/buyer/products")) return Promise.resolve({ data: [] });
+    if (url.includes("/api/products/me")) return Promise.resolve({ data: [] });
+    return Promise.resolve({ data: farmerProfile });
+  });
   axios.put.mockResolvedValue({
     data: {
       uid: "farmer-uid",
@@ -133,14 +142,323 @@ test("directs duplicate farmer emails to sign in instead of creating another acc
   consoleError.mockRestore();
 });
 
+test("registers Buyers with matching farmer fields, required declaration, Mongo profile, and email verification", async () => {
+  const buyerUser = {
+    uid: "buyer-uid",
+    email: "buyer@example.com",
+    getIdToken: jest.fn().mockResolvedValue("buyer-token"),
+    delete: jest.fn().mockResolvedValue(undefined)
+  };
+  createUserWithEmailAndPassword.mockResolvedValueOnce({ user: buyerUser });
+  sendEmailVerification.mockResolvedValueOnce(undefined);
+  axios.post.mockResolvedValueOnce({ data: { uid: "buyer-uid" } });
+  window.history.pushState({}, "", "/register/buyer");
+  render(<App />);
+
+  fireEvent.change(await screen.findByPlaceholderText("Enter your name"), {
+    target: { value: "Buyer Name" }
+  });
+  fireEvent.change(screen.getByPlaceholderText("Enter your phone number"), {
+    target: { value: "1234567890" }
+  });
+  fireEvent.change(screen.getByPlaceholderText("Enter your email"), {
+    target: { value: "buyer@example.com" }
+  });
+  fireEvent.change(screen.getByPlaceholderText("Enter your password"), {
+    target: { value: "password123" }
+  });
+  fireEvent.change(screen.getByPlaceholderText("Confirm your password"), {
+    target: { value: "password123" }
+  });
+
+  const declaration = screen.getByRole("checkbox", { name: /genuine buyer/i });
+  expect(declaration).toBeRequired();
+  fireEvent.click(declaration);
+  fireEvent.click(screen.getByRole("button", { name: "Register" }));
+
+  expect(await screen.findByText(/registered successfully/i)).toBeInTheDocument();
+  expect(createUserWithEmailAndPassword).toHaveBeenCalledWith(
+    auth,
+    "buyer@example.com",
+    "password123"
+  );
+  expect(sendEmailVerification).toHaveBeenCalledWith(buyerUser);
+  expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining("/api/buyer"),
+    expect.objectContaining({
+      uid: "buyer-uid",
+      name: "Buyer Name",
+      phone: "1234567890",
+      email: "buyer@example.com",
+      genuineBuyerConfirmed: true
+    }),
+    expect.objectContaining({
+      headers: { Authorization: "Bearer buyer-token" }
+    })
+  );
+});
+
 test.each([
   ["/dashboard/farmer", /welcome farmer/i],
-  ["/dashboard/buyer", /buyer accounts are coming soon/i],
+  ["/dashboard/buyer", /buyer login/i],
 ])("redirects unauthenticated visits to %s to the matching page", async (path, loginHeading) => {
   window.history.pushState({}, "", path);
   render(<App />);
 
   expect(await screen.findByRole("heading", { name: loginHeading })).toBeInTheDocument();
+});
+
+test("Buyer login opens the Buyer dashboard and greets the Buyer by name", async () => {
+  const buyerProfile = {
+    uid: "buyer-uid",
+    name: "Buyer Name",
+    email: "buyer@example.com",
+    phone: "1234567890"
+  };
+  const buyerUser = {
+    uid: "buyer-uid",
+    email: "buyer@example.com",
+    emailVerified: true,
+    getIdToken: jest.fn().mockResolvedValue("buyer-token")
+  };
+  signInWithEmailAndPassword.mockImplementationOnce(async (firebaseAuth) => {
+    firebaseAuth.currentUser = buyerUser;
+    authListener(buyerUser);
+    return { user: buyerUser };
+  });
+  axios.get.mockImplementation((url) => {
+    if (url.includes("/api/buyer/me")) return Promise.resolve({ data: buyerProfile });
+    if (url.includes("/api/buyer/products")) return Promise.resolve({ data: [] });
+    return Promise.reject({ response: { status: 404 } });
+  });
+  window.history.pushState({}, "", "/login/buyer");
+  render(<App />);
+
+  fireEvent.change(await screen.findByPlaceholderText("Enter your email"), {
+    target: { value: "buyer@example.com" }
+  });
+  fireEvent.change(screen.getByPlaceholderText("Enter your password"), {
+    target: { value: "password123" }
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Login" }));
+
+  expect(
+    await screen.findByRole("heading", { name: "Welcome, Buyer Name!" })
+  ).toBeInTheDocument();
+  expect(screen.getByText("Signed in as Buyer Name")).toBeInTheDocument();
+  expect(axios.get).toHaveBeenCalledWith(
+    expect.stringContaining("/api/buyer/products"),
+    expect.objectContaining({
+      headers: { Authorization: "Bearer buyer-token" }
+    })
+  );
+});
+
+test("Buyer login can complete a missing profile without creating another Firebase account", async () => {
+  const buyerProfile = {
+    uid: "buyer-uid",
+    name: "Buyer Recovery",
+    email: "buyer@example.com",
+    phone: "1234567890"
+  };
+  const buyerUser = {
+    uid: "buyer-uid",
+    email: "buyer@example.com",
+    emailVerified: true,
+    getIdToken: jest.fn().mockResolvedValue("buyer-token")
+  };
+  signInWithEmailAndPassword.mockImplementationOnce(async (firebaseAuth) => {
+    firebaseAuth.currentUser = buyerUser;
+    authListener(buyerUser);
+    return { user: buyerUser };
+  });
+  axios.get.mockImplementation((url) => {
+    if (url.includes("/api/buyer/me") || url.includes("/api/farmer/")) {
+      return Promise.reject({ response: { status: 404 } });
+    }
+    if (url.includes("/api/buyer/products")) return Promise.resolve({ data: [] });
+    return Promise.reject({ response: { status: 404 } });
+  });
+  axios.post.mockResolvedValueOnce({ data: buyerProfile });
+  window.history.pushState({}, "", "/login/buyer");
+  render(<App />);
+
+  fireEvent.change(await screen.findByPlaceholderText("Enter your email"), {
+    target: { value: "buyer@example.com" }
+  });
+  fireEvent.change(screen.getByPlaceholderText("Enter your password"), {
+    target: { value: "password123" }
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Login" }));
+
+  expect(
+    await screen.findByRole("heading", { name: "Complete your Buyer profile" })
+  ).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Full Name"), {
+    target: { value: "Buyer Recovery" }
+  });
+  fireEvent.change(screen.getByLabelText("Phone Number"), {
+    target: { value: "1234567890" }
+  });
+  fireEvent.click(screen.getByRole("checkbox"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete Buyer Profile" }));
+
+  expect(
+    await screen.findByRole("heading", { name: "Welcome, Buyer Recovery!" })
+  ).toBeInTheDocument();
+  expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining("/api/buyer"),
+    expect.objectContaining({
+      uid: "buyer-uid",
+      email: "buyer@example.com",
+      name: "Buyer Recovery",
+      phone: "1234567890",
+      genuineBuyerConfirmed: true
+    }),
+    expect.objectContaining({
+      headers: { Authorization: "Bearer buyer-token" }
+    })
+  );
+});
+
+test("Buyer login sends a Firebase password reset email", async () => {
+  sendPasswordResetEmail.mockResolvedValueOnce(undefined);
+  window.history.pushState({}, "", "/login/buyer");
+  render(<App />);
+
+  fireEvent.change(await screen.findByPlaceholderText("Enter your email"), {
+    target: { value: "buyer@example.com" }
+  });
+  fireEvent.click(screen.getByRole("button", { name: /forgot password/i }));
+
+  expect(
+    await screen.findByText(/password reset email sent to buyer@example\.com/i)
+  ).toBeInTheDocument();
+  expect(sendPasswordResetEmail).toHaveBeenCalledWith(auth, "buyer@example.com");
+});
+
+test("Buyer profile uses Buyer details and the Buyer profile API", async () => {
+  const buyerProfile = {
+    uid: "buyer-uid",
+    name: "Buyer Name",
+    email: "buyer@example.com",
+    phone: "1234567890"
+  };
+  auth.currentUser = {
+    uid: "buyer-uid",
+    email: "buyer@example.com",
+    emailVerified: true,
+    getIdToken: jest.fn().mockResolvedValue("buyer-token")
+  };
+  axios.get.mockImplementation((url) => (
+    url.includes("/api/buyer/me")
+      ? Promise.resolve({ data: buyerProfile })
+      : Promise.reject({ response: { status: 404 } })
+  ));
+  axios.put.mockResolvedValueOnce({
+    data: { ...buyerProfile, name: "Updated Buyer", phone: "0987654321" }
+  });
+  window.history.pushState({}, "", "/profile");
+  render(<App />);
+
+  expect(
+    await screen.findByRole("heading", { name: "My Buyer Profile" })
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Profile" }));
+  fireEvent.change(screen.getByLabelText("Full Name"), {
+    target: { value: "Updated Buyer" }
+  });
+  fireEvent.change(screen.getByLabelText("Phone Number"), {
+    target: { value: "0987654321" }
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+
+  await waitFor(() => {
+    expect(axios.put).toHaveBeenCalledWith(
+      expect.stringContaining("/api/buyer/me"),
+      { name: "Updated Buyer", phone: "0987654321" },
+      expect.objectContaining({
+        headers: { Authorization: "Bearer buyer-token" }
+      })
+    );
+  });
+});
+
+test("Buyer catalogue filters farmer products and shows farmer contact details", async () => {
+  const buyerProfile = {
+    uid: "buyer-uid",
+    name: "Buyer Name",
+    email: "buyer@example.com",
+    phone: "1234567890"
+  };
+  const products = [
+    {
+      _id: "mosambi-id",
+      productName: "Mosambi",
+      quantity: 100,
+      quantityUnit: "kg",
+      location: "Village A",
+      village: "Village A",
+      town: "Town A",
+      district: "District A",
+      state: "State A",
+      country: "India",
+      pincode: "111111",
+      price: 120,
+      priceUnit: "kg",
+      totalPrice: 12000
+    },
+    {
+      _id: "banana-id",
+      productName: "Banana",
+      quantity: 50,
+      quantityUnit: "kg",
+      location: "Village B",
+      village: "Village B",
+      town: "Town B",
+      district: "District B",
+      state: "State B",
+      country: "India",
+      pincode: "222222",
+      price: 60,
+      priceUnit: "kg",
+      totalPrice: 3000
+    }
+  ];
+  auth.currentUser = {
+    uid: "buyer-uid",
+    email: "buyer@example.com",
+    emailVerified: true,
+    getIdToken: jest.fn().mockResolvedValue("buyer-token")
+  };
+  axios.get.mockImplementation((url) => {
+    if (url.includes("/api/buyer/me")) return Promise.resolve({ data: buyerProfile });
+    if (url.includes("/api/buyer/products/banana-id")) {
+      return Promise.resolve({
+        data: {
+          ...products[1],
+          farmer: { name: "Farmer Name", phone: "9876543210" }
+        }
+      });
+    }
+    if (url.includes("/api/buyer/products")) return Promise.resolve({ data: products });
+    return Promise.reject({ response: { status: 404 } });
+  });
+  window.history.pushState({}, "", "/dashboard/buyer");
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Mosambi" })).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Product"), {
+    target: { value: "Banana" }
+  });
+  expect(screen.queryByRole("heading", { name: "Mosambi" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "View farmer details" }));
+
+  expect(await screen.findByText("Farmer Name")).toBeInTheDocument();
+  expect(screen.getByText("9876543210")).toHaveAttribute(
+    "href",
+    "tel:9876543210"
+  );
 });
 
 test("renders the farmer dashboard for a verified farmer profile", async () => {
@@ -184,16 +502,21 @@ test("keeps a farmer profile when its saved Firebase UID differs but email match
     emailVerified: true,
     getIdToken: jest.fn().mockResolvedValue("test-token")
   };
-  axios.get.mockImplementation((url) => Promise.resolve({
-    data: url.includes("/api/products/me")
-      ? []
-      : {
-          uid: "legacy-firebase-uid",
-          name: "Farmer Name",
-          email: "signed-in@example.com",
-          phone: "1234567890"
-        }
-  }));
+  axios.get.mockImplementation((url) => {
+    if (url.includes("/api/buyer/me")) {
+      return Promise.reject({ response: { status: 404 } });
+    }
+    return Promise.resolve({
+      data: url.includes("/api/products/me")
+        ? []
+        : {
+            uid: "legacy-firebase-uid",
+            name: "Farmer Name",
+            email: "signed-in@example.com",
+            phone: "1234567890"
+          }
+    });
+  });
   window.history.pushState({}, "", "/dashboard/farmer");
   render(<App />);
 
@@ -213,7 +536,9 @@ test("does not ask farmers to re-enter registration details when a profile is mi
   };
   auth.currentUser = user;
   axios.get.mockImplementation((url) => (
-    url.includes("/api/products/me")
+    url.includes("/api/buyer/me")
+      ? Promise.reject({ response: { status: 404 } })
+      : url.includes("/api/products/me")
       ? Promise.resolve({ data: [] })
       : Promise.reject({
           response: { status: 404, data: { message: "Farmer profile not found" } }
@@ -342,7 +667,7 @@ test("does not allow farmer accounts to open the buyer dashboard", async () => {
   render(<App />);
 
   expect(
-    await screen.findByRole("heading", { name: /buyer accounts are coming soon/i })
+    await screen.findByText(/this account is registered as a farmer/i)
   ).toBeInTheDocument();
 });
 
@@ -408,6 +733,33 @@ test("farmer email changes require verification before saving", async () => {
       headers: { Authorization: "Bearer test-token" }
     })
   );
+
+  fireEvent.click(screen.getByRole("button", { name: /i've verified my new email/i }));
+  expect(
+    await screen.findByText(/previous email remains linked until then/i)
+  ).toBeInTheDocument();
+  expect(axios.put).toHaveBeenCalledTimes(1);
+
+  auth.currentUser.email = "new@example.com";
+  axios.put.mockResolvedValueOnce({
+    data: {
+      uid: "farmer-uid",
+      name: "Updated Farmer",
+      email: "new@example.com",
+      phone: "0987654321"
+    }
+  });
+  await waitFor(() => {
+    expect(
+      screen.getByRole("button", { name: /i've verified my new email/i })
+    ).toBeEnabled();
+  });
+  fireEvent.click(screen.getByRole("button", { name: /i've verified my new email/i }));
+
+  expect(
+    await screen.findByText(/updated in firebase and synced to your farmer profile/i)
+  ).toBeInTheDocument();
+  expect(screen.getByText("new@example.com")).toBeInTheDocument();
 });
 test("shows the transition loader when navigating between pages", async () => {
   render(<App />);

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Farmer = require('../models/Farmer');
+const Buyer = require('../models/Buyer');
 const { requireVerifiedEmail } = require('../middleware/firebaseAuth');
 const findFarmerForUser = require('../utils/findFarmerForUser');
 
@@ -20,6 +21,13 @@ router.post('/', async (req, res) => {
     }
     if (profileEmail !== req.firebaseUser.email?.trim().toLowerCase()) {
       return res.status(403).json({ message: 'The profile email must match the signed-in user' });
+    }
+
+    const existingBuyer = await Buyer.findOne({ uid });
+    if (existingBuyer) {
+      return res.status(409).json({
+        message: 'This Firebase account is already registered as a Buyer'
+      });
     }
 
     const farmer = await Farmer.create({
