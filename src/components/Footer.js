@@ -16,25 +16,25 @@ const Footer = () => {
             <div>
               <h2 className="font-bold text-lg mb-4">Privacy</h2>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:underline">Privacy Policy</a></li>
-                <li><a href="#" className="hover:underline">Terms of Use</a></li>
-                <li><a href="#" className="hover:underline">Data Protection</a></li>
+                <li><Link to="/privacy" className="hover:underline">Privacy Policy</Link></li>
+                <li><Link to="/terms" className="hover:underline">Terms of Use</Link></li>
+                <li><Link to="/data-protection" className="hover:underline">Data Protection</Link></li>
               </ul>
             </div>
             <div>
               <h2 className="font-bold text-lg mb-4">Product</h2>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:underline">How It Works</a></li>
-                <li><a href="#" className="hover:underline">Farmer Dashboard</a></li>
-                <li><a href="#" className="hover:underline">Buyer Dashboard</a></li>
+                <li><Link to="/how-it-works" className="hover:underline">How It Works</Link></li>
+                <li><Link to="/dashboard/farmer" className="hover:underline">Farmer Dashboard</Link></li>
+                <li><Link to="/dashboard/buyer" className="hover:underline">Buyer Dashboard</Link></li>
               </ul>
             </div>
             <div>
               <h2 className="font-bold text-lg mb-4">Careers</h2>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:underline">Join Us</a></li>
-                <li><a href="#" className="hover:underline">Internships</a></li>
-                <li><a href="#" className="hover:underline">Partner with Us</a></li>
+                <li><Link to="/careers" className="hover:underline">Join Us</Link></li>
+                <li><Link to="/internships" className="hover:underline">Internships</Link></li>
+                <li><Link to="/partnerships" className="hover:underline">Partner with Us</Link></li>
               </ul>
             </div>
           </div>
