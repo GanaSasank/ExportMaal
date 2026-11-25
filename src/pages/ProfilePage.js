@@ -1,11 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { reload, verifyBeforeUpdateEmail } from "firebase/auth";
 import { auth } from "../firebase";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
-const ProfilePage = () => {
+const ProfilePage = ({ accountType = "farmer" }) => {
+  const accountLabel = accountType === "buyer" ? "Buyer" : "Farmer";
+  const profileUrl = useCallback((user) => accountType === "buyer"
+    ? `${API_URL}/api/buyer/me`
+    : `${API_URL}/api/farmer/${encodeURIComponent(user.uid)}`, [accountType]);
   const [profile, setProfile] = useState(null);
   const [formData, setFormData] = useState({ name: "", phone: "", email: "" });
   const [loading, setLoading] = useState(true);
@@ -22,21 +26,20 @@ const ProfilePage = () => {
       try {
         const user = auth.currentUser;
         if (!user?.emailVerified) {
-          throw new Error("Sign in with a verified farmer account to view this profile.");
+          throw new Error(`Sign in with a verified ${accountLabel.toLowerCase()} account to view this profile.`);
         }
 
         await reload(user);
         const token = await user.getIdToken(true);
         const headers = { Authorization: `Bearer ${token}` };
-        let response = await axios.get(
-          `${API_URL}/api/farmer/${encodeURIComponent(user.uid)}`,
-          { headers }
-        );
+        let response = await axios.get(profileUrl(user), { headers });
         let farmer = response.data;
 
-        if (user.email && user.email !== farmer.email) {
+        const firebaseEmailChanged = user.email &&
+          user.email.trim().toLowerCase() !== farmer.email?.trim().toLowerCase();
+        if (firebaseEmailChanged) {
           response = await axios.put(
-            `${API_URL}/api/farmer/${encodeURIComponent(user.uid)}`,
+            profileUrl(user),
             { name: farmer.name, phone: farmer.phone },
             { headers: { Authorization: `Bearer ${await user.getIdToken(true)}` } }
           );
@@ -51,12 +54,17 @@ const ProfilePage = () => {
           email: farmer.email || ""
         });
         setPendingEmail("");
+        if (firebaseEmailChanged) {
+          setMessage(
+            `Your verified email has been updated in Firebase and synced to your ${accountLabel.toLowerCase()} profile. The previous email is no longer linked to this account.`
+          );
+        }
       } catch (loadError) {
         if (active) {
           setError(
             loadError.response?.data?.message ||
               loadError.message ||
-              "Unable to load your farmer profile."
+              `Unable to load your ${accountLabel.toLowerCase()} profile.`
           );
         }
       } finally {
@@ -68,7 +76,7 @@ const ProfilePage = () => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [accountLabel, profileUrl]);
 
   const handleChange = (event) => {
     setFormData((previous) => ({
@@ -86,7 +94,7 @@ const ProfilePage = () => {
     const user = auth.currentUser;
     if (!user || !profile) {
       setSaving(false);
-      setError("Your signed-in farmer profile could not be found.");
+      setError(`Your signed-in ${accountLabel.toLowerCase()} profile could not be found.`);
       return;
     }
 
@@ -105,7 +113,7 @@ const ProfilePage = () => {
 
       const token = await user.getIdToken(true);
       const response = await axios.put(
-        `${API_URL}/api/farmer/${encodeURIComponent(user.uid)}`,
+        profileUrl(user),
         {
           name: formData.name.trim(),
           phone: formData.phone.trim()
@@ -129,7 +137,7 @@ const ProfilePage = () => {
       const details =
         saveError.response?.data?.message ||
         (saveError.response?.status === 404
-          ? "The farmer profile update route was not found. Restart the backend server and try again."
+          ? `The ${accountLabel.toLowerCase()} profile update route was not found. Restart the backend server and try again.`
           : "") ||
         saveError.message ||
         "Please try again.";
@@ -154,6 +162,53 @@ const ProfilePage = () => {
     setMessage("");
   };
 
+  const checkEmailUpdate = async () => {
+    const user = auth.currentUser;
+    if (!user || !profile || !pendingEmail) return;
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await reload(user);
+      if (
+        !user.emailVerified ||
+        user.email?.trim().toLowerCase() !== pendingEmail.trim().toLowerCase()
+      ) {
+        setError(
+          `Firebase has not completed this email change yet. Verify the link sent to ${pendingEmail}; your previous email remains linked until then.`
+        );
+        return;
+      }
+
+      const token = await user.getIdToken(true);
+      const response = await axios.put(
+        profileUrl(user),
+        { name: profile.name, phone: profile.phone },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setProfile(response.data);
+      setFormData({
+        name: response.data.name || "",
+        phone: response.data.phone || "",
+        email: response.data.email || ""
+      });
+      setPendingEmail("");
+      setMessage(
+        `Your email has been updated in Firebase and synced to your ${accountLabel.toLowerCase()} profile. The previous email is no longer linked to this account.`
+      );
+    } catch (checkError) {
+      setError(
+        checkError.response?.data?.message ||
+          checkError.message ||
+          "Unable to check the email update. Please try again."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-green-50 p-8 text-center text-green-900">
@@ -166,7 +221,7 @@ const ProfilePage = () => {
     return (
       <main className="min-h-screen bg-green-50 p-8">
         <p className="mx-auto max-w-2xl rounded-lg bg-white p-5 text-red-700" role="alert">
-          {error || "Farmer profile not found."}
+          {error || `${accountLabel} profile not found.`}
         </p>
       </main>
     );
@@ -176,7 +231,7 @@ const ProfilePage = () => {
     <main className="min-h-screen bg-green-50 p-6 sm:p-10">
       <section className="mx-auto max-w-2xl rounded-2xl bg-white p-8 shadow-md">
         <div className="mb-6 flex items-center justify-between gap-4">
-          <h1 className="text-3xl font-bold text-green-900">My Farmer Profile</h1>
+          <h1 className="text-3xl font-bold text-green-900">My {accountLabel} Profile</h1>
           {!editing && (
             <button
               type="button"
@@ -236,7 +291,9 @@ const ProfilePage = () => {
                 className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
               <p className="mt-1 text-sm text-gray-500">
-                Email changes take effect only after you verify the email link.
+                Firebase keeps your current email until you open the verification
+                link sent to the new address. Completing that link releases your
+                previous email from this account.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -279,9 +336,20 @@ const ProfilePage = () => {
         )}
 
         {pendingEmail && (
-          <p className="mt-5 text-sm text-amber-800" role="status">
-            Email change pending verification for {pendingEmail}.
-          </p>
+          <div className="mt-5 space-y-2">
+            <p className="text-sm text-amber-800" role="status">
+              Email change pending verification for {pendingEmail}. Your
+              previous email is still connected until you complete verification.
+            </p>
+            <button
+              type="button"
+              onClick={checkEmailUpdate}
+              disabled={saving}
+              className="rounded-lg border border-green-700 px-4 py-2 text-sm font-medium text-green-800 hover:bg-green-50 disabled:opacity-60"
+            >
+              {saving ? "Checking..." : "I've verified my new email"}
+            </button>
+          </div>
         )}
         {message && (
           <p className="mt-5 text-sm text-green-800" role="status">

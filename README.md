@@ -23,44 +23,56 @@ Implemented:
 - A protected farmer dashboard and farmer-only profile page showing the
   registered name, email, phone number, and email verification status.
 - Farmer profile editing for name and phone. Changing the email sends a Firebase
-  verification link; the new address is saved only after confirmation.
+  verification link; Firebase keeps the previous address until that link is
+  completed, then the profile syncs the verified address to MongoDB.
 - Farmer product cards with add, edit, and confirmed delete actions. Product
   details are saved in MongoDB and scoped to the signed-in farmer.
 - Product quantity units (kg, quintal, tonne), INR price per kg or tonne, and a
   calculated total value.
+- Buyer registration with the same name, phone, email, and password fields as
+  Farmer registration, plus a required genuine-buyer declaration.
+- Buyer profile records in MongoDB, including the declaration acceptance and
+  server-recorded timestamp. Registration sends Firebase email verification.
+- Buyer sign-in, a protected product catalogue with product/location/price
+  filters, and farmer contact details on each listing.
+- Buyer login includes Firebase password reset and profile completion for a
+  verified Buyer account whose MongoDB profile is missing.
+- Buyer profile editing and logout using the shared account menu.
 - Firebase ID-token protected API endpoints for farmer profiles and products.
-- Registration reuses existing Firebase accounts; duplicate emails are directed
-  to farmer sign-in instead of creating another account.
-- A buyer information page. Buyer registration and dashboard access are not
-  available yet.
+- Farmer registration directs duplicate Firebase emails to Farmer sign-in.
+  Buyer registration requires an email not currently assigned to a Firebase
+  account; an old Farmer database record alone does not reserve it.
 
 Still planned:
 
 - Product image uploads (the dashboard currently labels this as coming soon).
-- Buyer product browsing and marketplace workflows.
 - Orders, payments, and delivery features.
 
-The farmer dashboard supports product listing management. Photo uploads and
-buyer marketplace workflows are not implemented yet.
+The farmer dashboard supports product listing management. Photo uploads,
+orders, payments, and delivery workflows are not implemented yet.
 
 ## Authentication notes
 
-The current account type is farmer. A verified Firebase account must also have
-its own farmer profile to access the farmer dashboard or profile. Farmer
-registration saves those details in MongoDB, and profile retrieval checks the
-verified account UID and email so the farmer is not asked to re-enter them.
-When a verified email matches an older farmer record with a different Firebase
-UID, the backend reconnects that record to the current UID.
-Email is unique for farmer profiles; Firebase rejects duplicate sign-up emails
-and the registration page directs those users to sign in. Buyer registration
-has not been built; the buyer page explains that buyer accounts are not yet
-available, and
-`/dashboard/buyer` redirects there.
+Farmer and Buyer are separate account types with separate MongoDB collections.
+Firebase Email/Password sign-in permits one active account per email. Buyer
+registration creates a distinct Firebase account and profile; it is blocked if
+that Firebase UID already has a Farmer profile. An old Farmer record in MongoDB
+does not by itself mean Firebase still has that email or prevent a distinct
+Buyer account from registering. Registration sends an email-verification
+message and saves the Buyer profile and declaration acceptance to MongoDB.
+
+A Buyer profile requires the applicant to confirm that they are a genuine
+buyer. The API independently enforces this confirmation and stores its
+acceptance timestamp and declaration version. A verified email is required to
+access protected account features. Farmer profile retrieval uses the verified
+account UID and may reconnect an older Farmer record by email when the UID is
+not already registered as a Buyer.
 
 The backend verifies Firebase ID tokens with the Firebase Admin SDK. Profile
-reads and edits require a verified email, and API routes only allow a signed-in
-farmer to read or update their own profile. Configure Firebase Admin credentials
-for the backend before using registration or profile features.
+reads and edits require a verified email, and profile creation only accepts
+details matching the signed-in Firebase account. Configure Firebase Admin
+credentials and the MongoDB Atlas connection string for the backend before
+using registration.
 
 ## Pages and routes
 
@@ -70,9 +82,10 @@ for the backend before using registration or profile features.
 | `/login/farmer` | Farmer sign-in |
 | `/register/farmer` | Farmer registration |
 | `/dashboard/farmer` | Protected farmer dashboard |
-| `/login/buyer` | Buyer availability information |
-| `/dashboard/buyer` | Redirects to buyer availability information |
-| `/profile` | Protected farmer profile with view/edit controls |
+| `/login/buyer` | Buyer sign-in |
+| `/register/buyer` | Buyer registration and declaration |
+| `/dashboard/buyer` | Protected Buyer product catalogue |
+| `/profile` | Protected Farmer or Buyer profile with view/edit controls |
 | `/about` | Mission |
 | `/how-it-works` | Farmer product listing flow |
 | `/team` | Founder profile |
@@ -203,8 +216,9 @@ farmer's profile, or `404` when no profile exists.
 Requires a valid Firebase token and a verified email. The request body accepts
 `name` and `phone`; the email is taken from the verified Firebase token rather
 than trusted from the request body. The frontend sends an email verification
-link before requesting an email change, then synchronizes the new email after
-the user confirms it.
+link before requesting an email change. Firebase retains the previous address
+until the link is completed; after confirmation, the profile page refreshes
+Firebase and synchronizes the new address to MongoDB.
 
 `PUT /api/farmer/:uid` is the frontend's UID-based update route and accepts
 only the authenticated farmer's own UID. `GET /api/farmer/:uid` is also
@@ -231,6 +245,29 @@ Product requests accept `productName`, `quantity`, `quantityUnit`, `location`,
 `priceUnit`. The API derives ownership from the verified Firebase token and
 calculates `totalPrice`; clients cannot assign a product to another farmer.
 
+### Buyer registration
+
+`POST /api/buyer` creates a Buyer profile in the same MongoDB database
+configured by `MONGO_URI`. It requires a Firebase ID token and accepts `uid`,
+`name`, `email`, `phone`, and `genuineBuyerConfirmed: true`. The UID and email
+must match the Firebase token. The API rejects missing declaration acceptance,
+duplicate profiles and Firebase UIDs already registered as Farmers.
+MongoDB stores `genuineBuyerConfirmed`, `genuineBuyerConfirmedAt`, and a
+declaration-version identifier alongside the Buyer contact details. Email
+verification is sent by Firebase during registration; the profile is saved
+before the user completes verification, as with Farmer registration.
+
+Buyer profile and marketplace endpoints require a valid Firebase token, a
+verified email, and a Buyer profile for the signed-in UID:
+
+- `GET /api/buyer/me` — retrieve the signed-in Buyer profile.
+- `PUT /api/buyer/me` — update the Buyer name and phone; email comes from the
+  verified Firebase token.
+- `GET /api/buyer/products` — list Farmer product listings without exposing
+  farmer contact details in the catalogue response.
+- `GET /api/buyer/products/:productId` — retrieve a listing with the Farmer's
+  name and phone number.
+
 ## Tests and production build
 
 Run the frontend tests once:
@@ -253,15 +290,21 @@ The backend package does not currently have an implemented test suite.
 public/                  Static HTML, manifest, favicon, and robots file
 server/
   middleware/firebaseAuth.js  Firebase ID-token and email verification
+  models/Buyer.js       MongoDB buyer profile and declaration schema
   models/Farmer.js       MongoDB farmer profile schema
   models/Product.js      MongoDB farmer product schema
+  routes/buyer.js        Buyer registration, profile, and marketplace APIs
   routes/farmer.js       Farmer profile API routes
   routes/product.js      Farmer product API routes
+  utils/findBuyerForUser.js  Looks up Buyer by UID or verified email
   utils/findFarmerForUser.js  Looks up farmer by Firebase UID or verified email
   utils/productPricing.js     Converts listed quantity to total price
   server.js              Express app, middleware, MongoDB connection
 src/
   App.js                 Routes, authentication guards, shared footer, loader
+  pages/BuyerDashboard.js    Buyer marketplace and product filters
+  pages/BuyerLogin.js        Buyer sign-in and password reset
+  pages/BuyerProfileSetup.js Recover a missing Buyer profile
   firebase.js            Firebase app and Authentication setup
   components/
     Footer.js            Site-wide footer navigation

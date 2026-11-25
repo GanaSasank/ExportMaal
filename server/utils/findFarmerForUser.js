@@ -1,8 +1,12 @@
 const Farmer = require('../models/Farmer');
+const Buyer = require('../models/Buyer');
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const findFarmerForUser = async ({ uid, email, email_verified }) => {
+  const buyerByUid = uid ? await Buyer.findOne({ uid }) : null;
+  if (buyerByUid) return null;
+
   const farmerByUid = uid ? await Farmer.findOne({ uid }) : null;
   if (farmerByUid || !email) return farmerByUid;
 

@@ -24,6 +24,9 @@ mongoose.connect(process.env.MONGO_URI)
 const farmerRoutes = require('./routes/farmer');
 app.use('/api/farmer', requireFirebaseAuth, farmerRoutes);
 
+const buyerRoutes = require('./routes/buyer');
+app.use('/api/buyer', requireFirebaseAuth, buyerRoutes);
+
 const productRoutes = require('./routes/product');
 app.use('/api/products', requireFirebaseAuth, productRoutes);
 

@@ -6,6 +6,8 @@ import { auth } from "../firebase";
 const Header = ({
   user,
   farmerProfile,
+  buyerProfile,
+  profileType,
   profileLoading,
   profileError,
   authLoading
@@ -48,6 +50,8 @@ const Header = ({
     setMenuOpen(false);
     setError("");
   };
+  const accountProfile = profileType === "buyer" ? buyerProfile : farmerProfile;
+  const homePath = profileType === "buyer" ? "/dashboard/buyer" : "/dashboard/farmer";
 
   return (
     <header className="relative z-40 bg-green-900 text-white shadow-md">
@@ -56,7 +60,7 @@ const Header = ({
         aria-label="Main navigation"
       >
         <Link
-          to={user ? "/dashboard/farmer" : "/"}
+          to={user ? homePath : "/"}
           className="text-2xl font-bold tracking-tight hover:text-green-100"
         >
           Export-Maal
@@ -98,9 +102,11 @@ const Header = ({
               {user ? (
                 <>
                   <p className="truncate px-3 py-2 text-sm text-gray-600">
-                    {user.email}
+                    {accountProfile?.name
+                      ? `Signed in as ${accountProfile.name}`
+                      : user.email}
                   </p>
-                  {farmerProfile ? (
+                  {accountProfile ? (
                     <Link
                       to="/profile"
                       onClick={closeMenu}
@@ -111,8 +117,8 @@ const Header = ({
                   ) : (
                     <p className="px-3 py-2 text-sm text-gray-600" role={profileError ? "alert" : undefined}>
                       {profileLoading
-                        ? "Loading your farmer profile..."
-                        : profileError || "No farmer profile is linked to this account."}
+                        ? `Loading your ${profileType || "account"} profile...`
+                        : profileError || `No ${profileType || "account"} profile is linked to this account.`}
                     </p>
                   )}
                   <button
