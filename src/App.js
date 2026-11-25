@@ -9,6 +9,7 @@ import TeamPage from "./pages/TeamPage";
 import ContactPage from "./pages/ContactPage";
 import FarmerRegister from "./pages/FarmerRegister";
 import FarmerDashboard from "./pages/FarmerDashboard";
+import FooterInfoPage from "./pages/FooterInfoPage";
 
 function App() {
   return (
@@ -20,9 +21,15 @@ function App() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/team" element={<TeamPage />} />
         <Route path="/contact" element={<ContactPage />} />
-        <Route path="/login/farmer" element={<FarmerLogin />} />
         <Route path="/register/farmer" element={<FarmerRegister />} />
         <Route path="/dashboard/farmer" element={<FarmerDashboard />} />
+        <Route path="/how-it-works" element={<FooterInfoPage page="how-it-works" />} />
+        <Route path="/privacy" element={<FooterInfoPage page="privacy" />} />
+        <Route path="/terms" element={<FooterInfoPage page="terms" />} />
+        <Route path="/data-protection" element={<FooterInfoPage page="data-protection" />} />
+        <Route path="/careers" element={<FooterInfoPage page="careers" />} />
+        <Route path="/internships" element={<FooterInfoPage page="internships" />} />
+        <Route path="/partnerships" element={<FooterInfoPage page="partnerships" />} />
       </Routes>
     </Router>
   );
